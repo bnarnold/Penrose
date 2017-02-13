@@ -44,6 +44,26 @@ reversePath = over nodes reverse
 concatPath :: [Path] -> Path
 concatPath p = Path {_nodes = concatMap (tail._nodes) p}
 
+shapeToPath :: Shape -> Path
+shapeToPath (Shape Kite z x) = rotranslate x z kitePath
+shapeToPath (Shape Dart z x) = rotranslate x z dartPath
+
+refine :: Shape -> [Shape]
+refine s@(Shape t w z) = 
+  let phi = (sqrt 5 - 1)/2 :+ 0
+      tr t' u v = Shape t' (z*phi*v+w) (z*u*phi)
+  in case t of
+  Kite -> [tr Dart 1 0
+          ,tr Kite (zPower 3) (1 - zPower 3)
+          ,tr Kite (zPower 7) (1 + zPower 2)
+          ]
+  Dart -> [tr Kite (zPower 9) 0
+          ,tr Dart (zPower 6) (1+phi)
+          ]
+
+tilings :: [[Shape]]
+tilings = [standardKite] : map (concatMap refine) tilings
+
 kitePath :: Path
 kitePath = concatPath
   [longEdge
@@ -54,10 +74,10 @@ kitePath = concatPath
 
 dartPath :: Path
 dartPath = concatPath
-  [rotranslate (zPower 9) 0 longEdge
+  [reversePath $ rotranslate (zPower 4) 1 longEdge
   ,reversePath $ rotranslate (zPower 3) x shortEdge
   ,rotranslate (zPower 9) x shortEdge
-  ,reversePath $ rotranslate (zPower 7) 0 longEdge
+  ,rotranslate (zPower 2) (zPower 8) longEdge
   ]
   where
     x = (1 + (zPower 4) - (zPower 3))
