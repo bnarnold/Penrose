@@ -3,6 +3,7 @@
 module Shapes where
 
 import Control.Lens hiding (element)
+import Graphics.Gloss.Data.Picture
 import Data.Complex
 
 data ShapeType = Kite | Dart deriving (Show)
@@ -12,10 +13,10 @@ data Shape = Shape {_shape :: ShapeType
                    ,_rotate :: Complex Double
 } deriving (Show)
 
-newtype Path = Path {_nodes :: [Complex Double]} deriving (Show)
+newtype Vertices = Vertices {_nodes :: [Complex Double]} deriving (Show)
 
 makeLenses ''Shape
-makeLenses ''Path
+makeLenses ''Vertices
 
 standardKite :: Shape
 standardKite = Shape {_shape = Kite, _translate = 0, _rotate = 1}
@@ -29,24 +30,36 @@ z = cis (pi/5)
 zPower :: Int -> Complex Double
 zPower n = cis((pi/5) * fromIntegral (n `mod` 10))
 
-longEdge :: Path
-longEdge = Path {_nodes = [0,z]}
+longEdge :: Vertices
+longEdge = Vertices {_nodes = [0,(0.5 :+ (-0.1))*z,z]}
 
-shortEdge :: Path
-shortEdge = Path {_nodes = [0,1-z]}
+shortEdge :: Vertices
+shortEdge = Vertices {_nodes = [0,(0.5 :+ 0.1)*(1-z),1-z]}
 
-rotranslate :: Complex Double -> Complex Double -> Path -> Path
+rotranslate :: Complex Double -> Complex Double -> Vertices -> Vertices
 rotranslate z w = over nodes (map (\u -> u*z+w))
 
-reversePath :: Path -> Path
-reversePath = over nodes reverse
+reverseVertices :: Vertices -> Vertices
+reverseVertices = over nodes reverse
 
-concatPath :: [Path] -> Path
-concatPath p = Path {_nodes = concatMap (tail._nodes) p}
+concatVertices :: [Vertices] -> Vertices
+concatVertices p = Vertices {_nodes = concatMap (tail._nodes) p}
 
-shapeToPath :: Shape -> Path
-shapeToPath (Shape Kite z x) = rotranslate x z kitePath
-shapeToPath (Shape Dart z x) = rotranslate x z dartPath
+shapeToVertices :: Shape -> Vertices
+shapeToVertices (Shape Kite z x) = rotranslate x z kiteVertices
+shapeToVertices (Shape Dart z x) = rotranslate x z dartVertices
+
+complexToPoint :: Complex Double -> Point
+complexToPoint z = (realToFrac x, realToFrac y)
+  where
+    x = realPart z
+    y = imagPart z
+
+verticesToPicture :: Vertices -> Picture
+verticesToPicture = lineLoop . map complexToPoint . view nodes
+
+shapeToPicture :: Shape -> Picture
+shapeToPicture = verticesToPicture . shapeToVertices
 
 refine :: Shape -> [Shape]
 refine s@(Shape t w z) = 
@@ -64,23 +77,26 @@ refine s@(Shape t w z) =
 tilings :: [[Shape]]
 tilings = [standardKite] : map (concatMap refine) tilings
 
-kitePath :: Path
-kitePath = concatPath
+tilingPics :: [Picture]
+tilingPics = map (pictures . map shapeToPicture) tilings
+
+kiteVertices :: Vertices
+kiteVertices = concatVertices
   [longEdge
   ,rotranslate 1 z shortEdge
-  ,reversePath $ rotranslate (zPower 4) (zPower 9) shortEdge
-  ,reversePath $ rotranslate (zPower 8) 0 longEdge
+  ,reverseVertices $ rotranslate (zPower 4) (zPower 9) shortEdge
+  ,reverseVertices $ rotranslate (zPower 8) 0 longEdge
   ]
 
-dartPath :: Path
-dartPath = concatPath
-  [reversePath $ rotranslate (zPower 4) 1 longEdge
-  ,reversePath $ rotranslate (zPower 3) x shortEdge
+dartVertices :: Vertices
+dartVertices = concatVertices
+  [reverseVertices $ rotranslate (zPower 4) 1 longEdge
+  ,reverseVertices $ rotranslate (zPower 3) x shortEdge
   ,rotranslate (zPower 9) x shortEdge
   ,rotranslate (zPower 2) (zPower 8) longEdge
   ]
   where
     x = (1 + (zPower 4) - (zPower 3))
 
-printPath :: Path -> IO ()
-printPath = mapM_ print . _nodes
+printVertices :: Vertices -> IO ()
+printVertices = mapM_ print . _nodes
